@@ -91,6 +91,10 @@ rev2self
 
 No process enumeration, no SQL queries. Requires SYSTEM context and known PIDs.
 
+## Disclaimer
+
+This tool is provided for authorised security testing, red team engagements, and educational purposes only. Use it only on systems you own or have explicit written permission to test. Unauthorised access to computer systems is illegal and unethical. The authors accept no responsibility for misuse or damage caused by this tool.
+
 ## Building
 
 Requires MinGW-w64 cross-compiler.
