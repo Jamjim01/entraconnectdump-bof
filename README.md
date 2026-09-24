@@ -1,42 +1,108 @@
-# ADSyncDump BOF
+# entraconnectdump-bof
 
-The ADSyncDump BOF is a port of Dirkjan Mollema's [adconnectdump.py / ADSyncDecrypt](https://github.com/dirkjanm/adconnectdump) into a Beacon Object File (BOF) for use with Cobalt Strike, Sliver and Havoc.
+Cobalt Strike Beacon Object Files for extracting credentials from Microsoft Entra Connect (Azure AD Connect) servers. Supports both password-based (MSOL\_/Sync\_ accounts) and certificate-based (ABA) authentication configurations.
 
-> [!NOTE]
-> The tool has been tested on a Windows Server 2019 with Azure AD Connect version `2.2.1.0`. The 32 bit version of the BOF is untested, but I included it for completeness sake. Use at your own risk.
+## Prerequisites
 
-## Compilation
+- Local administrator on the Entra Connect server
+- Entra Connect service (miiserver.exe) must be running
+- Cobalt Strike 4.x with BOF support
 
-To compile the BOF, simply run `make` in the directory containing the source code. This will generate both 32-bit and 64-bit versions of the BOF.
+## Modules
 
-```shell
-make
+### `version`
+
+Read-only recon. Reads the installed Entra Connect version from disk, auto-discovers the LocalDB instance name from the ADSync service profile's filesystem, and classifies the authentication type based on version thresholds:
+
+- **< 2.4**: Password-only (MSOL\_/Sync\_ accounts)
+- **2.4 - 2.5**: ABA/certificate available as preview
+- **>= 2.6**: ABA/certificate is the default for new installs
+
+```
+entrasyncdump version
 ```
 
-## Usage
+### `dumpcertinfo`
 
-On Cobalt Strike, load the `adsyncdump.cna` script, for Sliver, use the `extension install` and `extension load` command to install the BOF. Once installed, laterally move to the AD Sync server as `NT AUTHORITY\SYSTEM` and run the `adsyncdump` command:
+Certificate recon for ABA-capable installs. Enumerates certificate thumbprints from the ADSync service account's certificate directory on disk and queries the LocalDB for the Application/Client ID from `mms_management_agent.private_configuration_xml`. No impersonation required.
 
-```shell
-beacon> adsyncdump
+```
+entrasyncdump dumpcertinfo [instancename]
 ```
 
-![ADSyncDump Example (Cobalt Strike)](images/adsyncdump-cobaltstrike.png)
+### `dumpcert`
 
-![ADSyncDump Example (Sliver)](images/adsyncdump-sliver.png)
+Certificate-based credential extraction for ABA installs. Enables SeDebugPrivilege, performs two-stage impersonation (admin -> SYSTEM via svchost -> ADSync via miiserver), opens the certificate store under the ADSync identity, acquires the CNG private key handle (software KSP or TPM-backed), and builds a signed RS256 JWT assertion. The assertion can be used with `roadtx` or direct OAuth2 token requests.
 
-## Background
+```
+entrasyncdump dumpcert <thumbprint> <client_id> <tenant_id>
+```
 
-This BOF came into existence a couple of years ago during an engagement after I ran into issues with the fact that the original Python script was too intrusive on client systems, and I had trouble getting the .NET version to run properly. As such I decided to reverse engineer the exact Win32 API calls used for the decryption process in my spare time and port it to a BOF.
+- `thumbprint` - 40-character hex certificate thumbprint (from `dumpcertinfo`)
+- `client_id` - Application/Client ID (from `dumpcertinfo`)
+- `tenant_id` - Azure AD tenant ID (GUID or domain)
 
-Originally, I didn't plan to share this project due to the fact I felt doing so was irresponsible, given that the ADSync account held some absurd privileges, and detection of the existing tooling wasn't great. However, since then, the privileges of the ADSync account have been severely limited by Microsoft, making the impact less severe (still not great, but at least you can't edit conditional access policies anymore[^wtf-microsoft]).
+### `autodumpcert`
 
-In addition, given that other researchers have already published the information about the inner workings of the decryption process (lots of props to Dr Syynimaa[^aadinternals] and Dirkjan Mollema[^dirk-jan]), and the fact that detection has become more widespread, I now feel more comfortable sharing this BOF with the rest of the community (sorry for being late to the party).
+Streamlined certificate extraction. Takes a PID directly (no process enumeration, no SQL queries), auto-discovers the thumbprint from the certificate directory, and signs the JWT. Requires the Beacon to already be running as SYSTEM (e.g., via `steal_token`).
 
-## License
+```
+entrasyncdump autodumpcert <pid> <tenant_id> <client_id>
+```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details. I take no responsibility for any misuse or damages caused by the use of this tool. Only use it in environments where you have explicit permission to do so.
+- `pid` - PID of miiserver.exe (from `ps`)
+- `tenant_id` - Azure AD tenant ID
+- `client_id` - Application/Client ID (from `dumpcertinfo`)
 
-[^wtf-microsoft]: <https://x.com/_dirkjan/status/1715263925971821008>
-[^aadinternals]: <https://aadinternals.com/post/adsync/>
-[^dirk-jan]: <https://dirkjanm.io/updating-adconnectdump-a-journey-into-dpapi/>
+### `dumpcreds`
+
+Password credential extraction for MSOL\_/Sync\_ account installs. Connects to the ADSync LocalDB as local admin (before impersonation), queries server configuration for the encryption keyset metadata, queries credential rows from `mms_management_agent`, then impersonates the ADSync service to retrieve and DPAPI-decrypt the keyset blob (from credential store or registry). The AES-256 key extracted from the keyset decrypts each `encrypted_configuration` column (AES-CBC). Parses the resulting UTF-16LE XML for the password attribute and outputs `domain\username password`.
+
+```
+entrasyncdump dumpcreds [instancename]
+```
+
+## Workflows
+
+### Password-based credentials (MSOL\_/Sync\_)
+
+```
+entrasyncdump version
+entrasyncdump dumpcreds
+```
+
+### Certificate-based (ABA) - manual
+
+```
+entrasyncdump version
+entrasyncdump dumpcertinfo
+entrasyncdump dumpcert <thumbprint> <client_id> <tenant_id>
+```
+
+Use the output JWT assertion with `roadtx` or a direct token request.
+
+### Certificate-based (ABA) - quiet
+
+```
+steal_token <system_pid>
+entrasyncdump autodumpcert <miiserver_pid> <tenant_id> <client_id>
+rev2self
+```
+
+No process enumeration, no SQL queries. Requires SYSTEM context and known PIDs.
+
+## Building
+
+Requires MinGW-w64 cross-compiler.
+
+```bash
+make          # release (no verbose output)
+make verbose  # verbose build (debug messages in Beacon output)
+make clean
+```
+
+## Loading
+
+```
+aggressor> load entrasyncdump.cna
+```

